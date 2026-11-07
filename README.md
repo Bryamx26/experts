@@ -99,7 +99,7 @@ L'humeur vient d'un petit arbre de comportement (`ui/behavior.py`), évalué
 | 5 | aucune frappe depuis 5 min | dort, jusqu'à la prochaine frappe |
 | 6 | sinon | idle |
 
-Le halo (réfléchit, erreur, suggestion) reste indépendant de l'humeur. Le serveur
+Pas de cercle autour du personnage : l'erreur et la suggestion passent par la bulle. Le serveur
 LSP signale les frappes à la fenêtre (évènement `activity`, au plus une fois par
 seconde). Les images sont générées depuis les maquettes (`expr.py`) ; un expert
 sans animations retombe sur son SVG fixe.
@@ -113,8 +113,8 @@ experts-ui        # ou python -m experts.ui
 
 Petite fenêtre sans bordure, translucide, toujours au premier plan, rangée au
 bord droit de l'écran (déplaçable à la souris). L'expert change selon le fichier
-ouvert dans l'éditeur ; son halo montre l'état (bleu pointillé : réfléchit,
-rouge : erreur, jaune : suggestion) et une bulle résume la première erreur.
+ouvert dans l'éditeur, son animation montre son humeur (étape 8) et une bulle
+résume la première erreur.
 Icône dans la zone de notification, raccourci global **Ctrl+Alt+E** pour
 l'afficher ou la masquer (pynput ; indisponible sous Wayland strict).
 

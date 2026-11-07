@@ -45,7 +45,7 @@ class Controller(QObject):
             self.panel.hide()
             self.window.sprite.set_selected(False)
             return
-        self.window.sprite.set_selected(True)  # halo « je t'écoute », comme sur la maquette
+        self.window.sprite.set_selected(True)
         self.panel.adjustSize()
         anchor = self.window.sprite.mapToGlobal(QPoint(0, self.window.sprite.height()))
         self.panel.move(anchor.x() - self.panel.width() - 8, anchor.y() - self.panel.height())

@@ -6,8 +6,8 @@ Choix :
 - le personnage est animé par des bandes PNG pré-rendues (une par état, voir
   animation.py) ; l'état d'animation vient de l'arbre de comportement
   (behavior.py), évalué 10 fois par seconde ;
-- l'état du serveur LSP (réfléchit, alerte, suggestion) reste visible par un
-  halo coloré autour du personnage, indépendant de son humeur ;
+- aucun cercle autour du personnage : l'humeur passe par l'animation, et
+  l'erreur ou la suggestion par la bulle ;
 - environ 64 px de personnage, rangé au bord droit de l'écran : il ne doit jamais
   masquer le code. La bulle s'ouvre à sa gauche et se referme seule ;
 - déplaçable à la souris (attention : il n'aime pas trop ça).
@@ -15,14 +15,13 @@ Choix :
 
 from __future__ import annotations
 
-import math
 import time
 from collections.abc import Callable
 from html import escape
 from typing import Any
 
 from PySide6.QtCore import QPoint, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QGuiApplication, QMouseEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtGui import QGuiApplication, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
@@ -32,15 +31,10 @@ from experts.ui.behavior import Behavior
 
 FRAME_PX = 128  # une image de 256 px affichée à 128 : le personnage y fait ~65 px
 SPRITE_SIZE = 64  # repli SVG quand un expert n'a pas d'animations
-CHAR_BOX = (0.2, 0.36, 0.6, 0.58)  # zone du personnage dans l'image (x, y, l, h), pour le halo
+CHAR_BOX = (0.2, 0.36, 0.6, 0.58)  # zone du personnage dans l'image (x, y, l, h)
 DRAG_THRESHOLD_PX = 4
 BEHAVIOR_MS = 100
-HALO = {
-    "idle": None,
-    "think": QColor(90, 160, 255),
-    "alert": QColor(240, 80, 80),
-    "suggest": QColor(250, 200, 60),
-}
+LSP_STATES = frozenset({"idle", "think", "alert", "suggest"})
 BUBBLE_MS = {"diagnostics": 9000, "suggestion": 15000, "info": 5000}
 
 
@@ -55,7 +49,7 @@ class SpriteWidget(QWidget):
         self.setToolTip("Clique pour poser une question")
         self._renderers: dict[str, QSvgRenderer] = {}
         self.sheets: Sheets | None = None
-        self.state = "idle"  # état LSP → halo
+        self.state = "idle"  # état du serveur LSP
         self.anim = "idle"  # humeur → animation
         self._anim_since = clock()
         self.selected = False  # panneau de question ouvert
@@ -72,7 +66,7 @@ class SpriteWidget(QWidget):
         self.update()
 
     def set_state(self, state: str) -> None:
-        if state in HALO:
+        if state in LSP_STATES:
             self.state = state
             self.update()
 
@@ -95,17 +89,6 @@ class SpriteWidget(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         now = self.clock()
-        ring = self._char_rect().adjusted(-4, -4, 4, 4)
-        halo = HALO.get(self.state)
-        if halo is not None:
-            color = QColor(halo)
-            color.setAlphaF(0.55 + 0.35 * math.sin(now * 5))
-            pen = QPen(color, 3, Qt.PenStyle.DashLine if self.state == "think" else Qt.PenStyle.SolidLine)
-            p.setPen(pen)
-            p.drawEllipse(ring)
-        if self.selected:
-            p.setPen(QPen(QColor(150, 190, 255), 2, Qt.PenStyle.DotLine))
-            p.drawEllipse(ring.adjusted(-3, -3, 3, 3))
         frame = self.sheets.frame(self.anim, now - self._anim_since) if self.sheets else None
         if frame is not None:
             p.drawPixmap(self.rect(), frame)
