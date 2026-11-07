@@ -31,6 +31,7 @@ class Settings:
     backend: Backend = "ollama"
     cloud_model: str = "claude-opus-5-5"
     embed_model: str = "nomic-embed-text"
+    fim_model: str = "qwen2.5-coder:1.5b"
     data_dir: Path = field(default_factory=lambda: Path.home() / ".local" / "share" / "experts")
 
     @classmethod
@@ -44,6 +45,7 @@ class Settings:
             backend="anthropic" if os.environ.get("EXPERTS_BACKEND") == "anthropic" else "ollama",
             cloud_model=os.environ.get("EXPERTS_CLOUD_MODEL", cls.cloud_model),
             embed_model=os.environ.get("EXPERTS_EMBED_MODEL", cls.embed_model),
+            fim_model=os.environ.get("EXPERTS_FIM_MODEL", cls.fim_model),
             data_dir=Path(
                 os.environ.get("EXPERTS_DATA_DIR", Path.home() / ".local" / "share" / "experts")
             ).expanduser(),

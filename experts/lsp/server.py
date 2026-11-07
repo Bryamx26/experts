@@ -28,6 +28,7 @@ from experts.core.app import Runtime, build_runtime
 from experts.core.bridge import BridgeClient
 from experts.core.companions import CompanionSpec
 from experts.core.config import Settings
+from experts.core.fim import FimClient
 from experts.core.fixer import minimal_edit, propose_fix
 from experts.tools.validators import Diagnostic, Validator, from_names, validate_content, validate_path
 
@@ -72,6 +73,7 @@ class ExpertsServer(LanguageServer):
         super().__init__("experts", "0.4.0")
         self.runtime: Runtime | None = None
         self.bridge: BridgeClient | None = None
+        self.fim: FimClient | None = None
         self._pending: dict[str, asyncio.Task[None]] = {}
         # Branché sur la fenêtre du compagnon à l'étape 5 (WebSocket).
         self.emit: Callable[[Event], None] = lambda event: None
@@ -82,6 +84,7 @@ class ExpertsServer(LanguageServer):
             settings = replace(settings, workspace=root.resolve())
         # Pas de terminal ici : toute commande est refusée tant que la fenêtre (étape 5) ne confirme pas.
         self.runtime = build_runtime(settings, confirm=lambda argv: False)
+        self.fim = FimClient(settings.ollama_host, settings.fim_model)
 
     def context(self, uri: str) -> tuple[Path, str, CompanionSpec, list[Validator]]:
         assert self.runtime is not None
@@ -236,3 +239,33 @@ async def code_action_resolve(ls: ExpertsServer, action: lsp.CodeAction) -> lsp.
     ls.emit({"type": "suggestion", "companion": spec.name, "text": fix.explanation})
     ls.emit({"type": "state", "state": "suggest"})
     return action
+
+
+INLINE_DEBOUNCE_S = 0.15
+
+
+@server.feature(lsp.TEXT_DOCUMENT_INLINE_COMPLETION, lsp.InlineCompletionOptions())
+async def inline_completion(
+    ls: ExpertsServer, params: lsp.InlineCompletionParams
+) -> lsp.InlineCompletionList | None:
+    """Texte grisé à la position du curseur (LSP 3.18 : VS Code, Neovim 0.12+)."""
+    assert ls.fim is not None
+    doc = ls.workspace.get_text_document(params.text_document.uri)
+    version = doc.version
+    # Petite pause : si tu tapes encore, la requête est abandonnée avant d'appeler le modèle.
+    await asyncio.sleep(INLINE_DEBOUNCE_S)
+    doc = ls.workspace.get_text_document(params.text_document.uri)
+    if doc.version != version:
+        return None
+    pos = params.position
+    line = doc.lines[pos.line] if pos.line < len(doc.lines) else ""
+    after = line[pos.character :]
+    if after[:1].isalnum() or after[:1] == "_":
+        return None  # curseur au milieu d'un mot : on ne propose rien
+    offset = doc.offset_at_position(pos)
+    text = await ls.fim.complete(doc.source[:offset], doc.source[offset:])
+    if not text:
+        return None
+    return lsp.InlineCompletionList(
+        items=[lsp.InlineCompletionItem(insert_text=text, range=lsp.Range(pos, pos))]
+    )
