@@ -229,6 +229,15 @@ KUBECONFORM = Validator("kubeconform", "kubeconform", run_kubeconform)
 COMPOSE = Validator("docker compose", "docker", run_compose)
 
 
+VALIDATORS: dict[str, Validator] = {
+    "ruff": RUFF,
+    "hadolint": HADOLINT,
+    "yamllint": YAMLLINT,
+    "kubeconform": KUBECONFORM,
+    "docker-compose": COMPOSE,
+}
+Picker = Callable[[Path], list[Validator]]
+
 # --- Sélection et exécution ----------------------------------------------------------------
 
 
@@ -241,8 +250,12 @@ def is_kubernetes(path: Path) -> bool:
     return any(_scalar(d, "apiVersion") and _scalar(d, "kind") for d in _yaml_docs(path))
 
 
+def from_names(names: Sequence[str]) -> list[Validator]:
+    return [VALIDATORS[n] for n in names if n in VALIDATORS]
+
+
 def validators_for(path: Path) -> list[Validator]:
-    """Choix par nom de fichier et contenu. Le routeur YAML de l'étape 3 remplacera cette table."""
+    """Table par défaut (sans compagnon). L'application passe par le routeur et les YAML."""
     name = path.name.lower()
     if name.endswith(".py"):
         return [RUFF]
@@ -275,7 +288,9 @@ def validate_path(path: Path, validators: Sequence[Validator] | None = None) -> 
     return sorted(out, key=lambda d: (d.line, d.column))
 
 
-def validate_content(filename: str, content: str) -> list[Diagnostic]:
+def validate_content(
+    filename: str, content: str, validators: Sequence[Validator] | None = None
+) -> list[Diagnostic]:
     """Valide un contenu pas encore écrit (ex. correction proposée par le LLM).
 
     Le fichier est copié sous le même nom dans un dossier temporaire, pour que
@@ -284,7 +299,7 @@ def validate_content(filename: str, content: str) -> list[Diagnostic]:
     with tempfile.TemporaryDirectory(prefix="experts-") as tmp:
         target = Path(tmp) / Path(filename).name
         target.write_text(content, encoding="utf-8")
-        return validate_path(target)
+        return validate_path(target, validators)
 
 
 def errors_only(diagnostics: Sequence[Diagnostic]) -> list[Diagnostic]:
@@ -295,14 +310,15 @@ def summarize(diagnostics: Sequence[Diagnostic]) -> str:
     return "\n".join(d.format() for d in diagnostics) or "Aucun problème détecté."
 
 
-def make_validate_file(workspace: Path) -> Tool:
+def make_validate_file(workspace: Path, pick: Picker = validators_for) -> Tool:
     def validate_file(path: str) -> str:
         target = resolve_inside(workspace, path)
         if not target.is_file():
             raise ToolError(f"'{path}' n'existe pas ou n'est pas un fichier.")
-        if not validators_for(target):
+        chosen = pick(target)
+        if not chosen:
             return f"Aucun validateur pour '{path}' (Python, Dockerfile, compose, YAML/Kubernetes)."
-        return summarize(validate_path(target))
+        return summarize(validate_path(target, chosen))
 
     return Tool(
         name="validate_file",

@@ -60,6 +60,10 @@ class ToolRegistry:
     def names(self) -> list[str]:
         return list(self._tools)
 
+    def subset(self, names: list[str] | tuple[str, ...]) -> ToolRegistry:
+        """Registre limité aux outils autorisés pour un compagnon (ignore les noms inconnus)."""
+        return ToolRegistry([self._tools[n] for n in names if n in self._tools])
+
     def call(self, name: str, arguments: dict[str, Any]) -> str:
         """Exécute un outil. Ne lève jamais : le modèle reçoit l'erreur en texte."""
         tool = self._tools.get(name)

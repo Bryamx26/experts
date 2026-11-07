@@ -4,7 +4,7 @@ Compagnon de bureau local qui aide à coder et configurer, avec un spécialiste 
 technologie : Python (le chat), Docker (la boîte), Kubernetes (la pieuvre).
 Tout tourne en local avec Ollama, sans API cloud.
 
-## État : étapes 1 et 2 de la feuille de route
+## État : étapes 1 à 3 de la feuille de route
 
 Un compagnon Python en terminal qui appelle Ollama et utilise des outils :
 
@@ -31,6 +31,23 @@ docker run -d --name searxng -p 127.0.0.1:8888:8080 searxng/searxng
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 python -m experts --workspace ~/mon-projet
+```
+
+### Compagnons et routeur (étape 3)
+
+Chaque expert est décrit dans `experts/companions/<nom>.yaml` : nom, personnage,
+sprites par état (idle, think, alert, suggest), prompt système, collection RAG,
+outils autorisés, validateurs par motif de fichier, règles de routage et
+mots-clés. Les règles de sécurité communes sont ajoutées par le code, pas par
+les YAML. Pour un nouvel expert, ajoute un YAML et ses sprites dans `assets/`.
+
+Le routeur choisit l'expert dans cet ordre : règles de nom de fichier et de clés
+YAML (`apiVersion` + `kind` → Kubernetes), mots-clés du contenu, puis le modèle
+seulement si c'est encore ambigu, et enfin Python par défaut.
+
+```bash
+python -m experts --file Dockerfile     # démarre avec l'expert Docker
+# dans le terminal : /fichier deploy.yaml, /expert docker
 ```
 
 ### Validateurs (étape 2)
@@ -101,9 +118,9 @@ mypy experts tests
 
 ```
 experts/
-├── companions/   # un YAML par spécialiste (étape 3)
+├── companions/   # python.yaml, docker.yaml, kubernetes.yaml
 ├── assets/       # sprites : python/chat.svg, docker/boite.svg, kubernetes/pieuvre.svg
-├── core/         # config.py, llm.py, agent.py, cloud.py, rag.py ; router.py à l'étape 3
+├── core/         # config, llm, agent, cloud, rag, companions, router, app
 ├── lsp/          # serveur pygls (étape 4)
 ├── tools/        # base.py, files.py, web_search.py, shell.py, validators.py
 └── ui/           # fenêtre PySide6 (étape 5)
@@ -113,7 +130,7 @@ experts/
 
 1. ✅ Compagnon en terminal qui appelle Ollama avec ses outils.
 2. ✅ RAG et validateurs.
-3. YAML de compagnons et routeur.
+3. ✅ YAML de compagnons et routeur.
 4. Serveur LSP : diagnostics, puis code actions.
 5. Interface PySide6 et liaison WebSocket.
 6. Autocomplétion FIM.
