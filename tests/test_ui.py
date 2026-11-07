@@ -128,3 +128,38 @@ def test_bridge_auth_and_dispatch(app: QApplication, tmp_path: Path) -> None:
     assert counts == [1, 0]  # seul le client authentifié a compté, puis s'est déconnecté
     assert server.active is None
     server.close()
+
+
+def test_window_plays_behavior_animations(app: QApplication) -> None:
+    now = [0.0]
+    window = CompanionWindow(load_companions(), clock=lambda: now[0])
+    sprite = window.sprite
+    assert sprite.sheets is not None  # bandes PNG du chat chargées
+    frame = sprite.sheets.frame("mange", 1.0)
+    assert frame is not None and frame.width() == 256 and not frame.isNull()
+    clicks: list[bool] = []
+    window.sprite_clicked.connect(lambda: clicks.append(True))
+
+    sprite.clicked.emit()  # clic simple : il est content et la question s'ouvre
+    assert sprite.anim == "content" and clicks == [True]
+
+    window.handle_event({"type": "diagnostics", "items": []})
+    now[0] = 5
+    window.handle_event({"type": "diagnostics", "items": [{"severity": "error", "line": 1}]})
+    window.tick_behavior()
+    assert sprite.anim == "surpris"  # nouvelle erreur
+
+    for k in range(5):  # on le déplace sans arrêt : il boude
+        window.behavior.drag_start(10 + k, 0, 0)
+        window.behavior.drag_move(10.5 + k, 50, 0)
+        window.behavior.drag_end(10.5 + k, moved=True)
+    now[0] = 15
+    window.tick_behavior()
+    assert sprite.anim == "fache"
+    sprite.clicked.emit()
+    assert clicks == [True]  # clic ignoré
+    assert "boude" in window.bubble.label.text()
+
+    window.handle_event({"type": "focus", "companion": "kubernetes", "file": "/p/k.yaml"})
+    assert window.sprite.sheets is not None and "dort" in window.sprite.sheets.clips
+    window.grab()  # le rendu d'une image ne plante pas

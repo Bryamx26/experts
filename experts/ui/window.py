@@ -3,16 +3,21 @@
 Choix :
 - Qt.Tool + FramelessWindowHint + WindowStaysOnTopHint : pas d'entrée dans la
   barre des tâches, pas de bordure, au-dessus de l'éditeur ;
-- le sprite est le SVG de l'expert (net à toutes les tailles) ; l'état est montré
-  par une animation et un halo coloré, sans dessiner quatre images par expert ;
-- environ 64 px, rangé au bord droit de l'écran : il ne doit jamais masquer le
-  code. La bulle s'ouvre à sa gauche et se referme seule ;
-- déplaçable à la souris.
+- le personnage est animé par des bandes PNG pré-rendues (une par état, voir
+  animation.py) ; l'état d'animation vient de l'arbre de comportement
+  (behavior.py), évalué 10 fois par seconde ;
+- l'état du serveur LSP (réfléchit, alerte, suggestion) reste visible par un
+  halo coloré autour du personnage, indépendant de son humeur ;
+- environ 64 px de personnage, rangé au bord droit de l'écran : il ne doit jamais
+  masquer le code. La bulle s'ouvre à sa gauche et se referme seule ;
+- déplaçable à la souris (attention : il n'aime pas trop ça).
 """
 
 from __future__ import annotations
 
 import math
+import time
+from collections.abc import Callable
 from html import escape
 from typing import Any
 
@@ -22,8 +27,14 @@ from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from experts.core.companions import CompanionSpec
+from experts.ui.animation import Sheets, load_clips
+from experts.ui.behavior import Behavior
 
-SPRITE_SIZE = 64
+FRAME_PX = 128  # une image de 256 px affichée à 128 : le personnage y fait ~65 px
+SPRITE_SIZE = 64  # repli SVG quand un expert n'a pas d'animations
+CHAR_BOX = (0.2, 0.36, 0.6, 0.58)  # zone du personnage dans l'image (x, y, l, h), pour le halo
+DRAG_THRESHOLD_PX = 4
+BEHAVIOR_MS = 100
 HALO = {
     "idle": None,
     "think": QColor(90, 160, 255),
@@ -36,22 +47,28 @@ BUBBLE_MS = {"diagnostics": 9000, "suggestion": 15000, "info": 5000}
 class SpriteWidget(QWidget):
     clicked = Signal()
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, clock: Callable[[], float] = time.monotonic) -> None:
         super().__init__(parent)
-        self.setFixedSize(QSize(SPRITE_SIZE + 16, SPRITE_SIZE + 16))
+        self.clock = clock
+        self.setFixedSize(QSize(FRAME_PX, FRAME_PX))
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setToolTip("Clique pour poser une question")
         self._renderers: dict[str, QSvgRenderer] = {}
-        self.state = "idle"
+        self.sheets: Sheets | None = None
+        self.state = "idle"  # état LSP → halo
+        self.anim = "idle"  # humeur → animation
+        self._anim_since = clock()
         self.selected = False  # panneau de question ouvert
-        self._phase = 0.0
         self._timer = QTimer(self)
-        self._timer.timeout.connect(self._tick)
-        self._timer.start(33)  # ~30 images/s ; très peu de CPU pour un widget de 80 px
+        self._timer.timeout.connect(self.update)
+        self._timer.start(42)  # ~24 images/s, au-dessus du fps le plus rapide des bandes (12)
 
     def set_companion(self, spec: CompanionSpec) -> None:
+        clips = load_clips(spec.name, spec.sprites["idle"].parent.parent)
+        self.sheets = Sheets(clips) if clips else None
         self._renderers = {state: QSvgRenderer(str(path), self) for state, path in spec.sprites.items()}
         self.setToolTip(f"{spec.display_name} ({spec.character})")
+        self._anim_since = self.clock()
         self.update()
 
     def set_state(self, state: str) -> None:
@@ -59,42 +76,48 @@ class SpriteWidget(QWidget):
             self.state = state
             self.update()
 
+    def set_anim(self, anim: str) -> None:
+        if anim != self.anim:
+            self.anim = anim
+            self._anim_since = self.clock()
+            self.update()
+
     def set_selected(self, selected: bool) -> None:
         self.selected = selected
         self.update()
 
-    def _tick(self) -> None:
-        self._phase = (self._phase + 0.033) % 1000
-        self.update()
-
-    def offset(self) -> QPoint:
-        t = self._phase
-        if self.state == "alert":
-            return QPoint(round(2 * math.sin(t * 40)) if (t % 2) < 0.4 else 0, 0)  # petite secousse
-        if self.state == "think":
-            return QPoint(0, round(2 * math.sin(t * 6)))
-        return QPoint(0, round(3 * math.sin(t * 2)))  # respiration
+    def _char_rect(self) -> QRectF:
+        x, y, w, h = CHAR_BOX
+        return QRectF(self.width() * x, self.height() * y, self.width() * w, self.height() * h)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        now = self.clock()
+        ring = self._char_rect().adjusted(-4, -4, 4, 4)
         halo = HALO.get(self.state)
         if halo is not None:
             color = QColor(halo)
-            color.setAlphaF(0.55 + 0.35 * math.sin(self._phase * 5))
+            color.setAlphaF(0.55 + 0.35 * math.sin(now * 5))
             pen = QPen(color, 3, Qt.PenStyle.DashLine if self.state == "think" else Qt.PenStyle.SolidLine)
             p.setPen(pen)
-            p.drawEllipse(QRectF(3, 3, self.width() - 6, self.height() - 6))
+            p.drawEllipse(ring)
         if self.selected:
             p.setPen(QPen(QColor(150, 190, 255), 2, Qt.PenStyle.DotLine))
-            p.drawEllipse(QRectF(1, 1, self.width() - 2, self.height() - 2))
-        renderer = self._renderers.get(self.state)
-        if renderer is not None and renderer.isValid():
-            box = renderer.defaultSize().scaled(SPRITE_SIZE, SPRITE_SIZE, Qt.AspectRatioMode.KeepAspectRatio)
-            o = self.offset()
-            x = (self.width() - box.width()) / 2 + o.x()
-            y = (self.height() - box.height()) / 2 + o.y()
-            renderer.render(p, QRectF(x, y, box.width(), box.height()))
+            p.drawEllipse(ring.adjusted(-3, -3, 3, 3))
+        frame = self.sheets.frame(self.anim, now - self._anim_since) if self.sheets else None
+        if frame is not None:
+            p.drawPixmap(self.rect(), frame)
+        else:
+            renderer = self._renderers.get(self.state)
+            if renderer is not None and renderer.isValid():
+                keep = Qt.AspectRatioMode.KeepAspectRatio
+                box = renderer.defaultSize().scaled(SPRITE_SIZE, SPRITE_SIZE, keep)
+                target = self._char_rect()
+                x = target.center().x() - box.width() / 2
+                y = target.bottom() - box.height()
+                renderer.render(p, QRectF(x, y, box.width(), box.height()))
         p.end()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
@@ -136,9 +159,16 @@ class CompanionWindow(QWidget):
 
     sprite_clicked = Signal()
 
-    def __init__(self, companions: dict[str, CompanionSpec], default: str = "python") -> None:
+    def __init__(
+        self,
+        companions: dict[str, CompanionSpec],
+        default: str = "python",
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
         super().__init__(None)
         self.companions = companions
+        self.clock = clock
+        self.behavior = Behavior(clock())
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool
         )
@@ -148,14 +178,30 @@ class CompanionWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         self.bubble = Bubble(self)
-        self.sprite = SpriteWidget(self)
+        self.sprite = SpriteWidget(self, clock)
         layout.addWidget(self.bubble, 0, Qt.AlignmentFlag.AlignBottom)
         layout.addWidget(self.sprite, 0, Qt.AlignmentFlag.AlignBottom)
-        self.sprite.clicked.connect(self.sprite_clicked)
+        self.sprite.clicked.connect(self._on_click)
         self.current = companions[default]
         self.sprite.set_companion(self.current)
         self._anchor: QPoint | None = None  # coin bas-droit, fixe même quand la bulle s'ouvre
         self._drag_from: QPoint | None = None
+        self._press_at: QPoint | None = None
+        self._moved = False
+        self._behavior_timer = QTimer(self)
+        self._behavior_timer.timeout.connect(self.tick_behavior)
+        self._behavior_timer.start(BEHAVIOR_MS)
+
+    # --- comportement ---
+    def tick_behavior(self) -> None:
+        self.sprite.set_anim(self.behavior.tick(self.clock()))
+
+    def _on_click(self) -> None:
+        if self.behavior.click(self.clock()):
+            self.tick_behavior()
+            self.sprite_clicked.emit()
+        else:
+            self.say("<b>Grrr !</b> Je boude. Laisse-moi tranquille un moment.", BUBBLE_MS["info"])
 
     # --- placement ---
     def place_default(self) -> None:
@@ -178,9 +224,16 @@ class CompanionWindow(QWidget):
                 self.sprite.set_companion(spec)
                 self.say(f"<b>{escape(spec.display_name)}</b> prend le relais.", BUBBLE_MS["info"])
         elif kind == "state":
-            self.sprite.set_state(str(event.get("state")))
+            state = str(event.get("state"))
+            if state == "think" and self.sprite.state != "think":
+                self.behavior.model_request()
+            self.sprite.set_state(state)
         elif kind == "diagnostics":
-            self._show_diagnostics(event.get("items") or [])
+            items = event.get("items") or []
+            self.behavior.diagnostics(self.clock(), sum(1 for i in items if i.get("severity") == "error"))
+            self._show_diagnostics(items)
+        elif kind == "activity":
+            self.behavior.activity(self.clock())
         elif kind == "suggestion":
             self.say(f"💡 {escape(str(event.get('text', '')))}", BUBBLE_MS["suggestion"])
 
@@ -206,13 +259,27 @@ class CompanionWindow(QWidget):
     # --- déplacement à la souris ---
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_from = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self._press_at = event.globalPosition().toPoint()
+            self._drag_from = self._press_at - self.frameGeometry().topLeft()
+            self._moved = False
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        if self._drag_from is not None:
-            self.move(event.globalPosition().toPoint() - self._drag_from)
-            self._anchor = self.frameGeometry().bottomRight()
+        if self._drag_from is None or self._press_at is None:
+            return
+        pos = event.globalPosition().toPoint()
+        if not self._moved:
+            if (pos - self._press_at).manhattanLength() < DRAG_THRESHOLD_PX:
+                return  # tremblement de la main : c'est encore un clic
+            self._moved = True
+            self.behavior.drag_start(self.clock(), self._press_at.x(), self._press_at.y())
             self.sprite.setProperty("dragged", True)
+        self.move(pos - self._drag_from)
+        self._anchor = self.frameGeometry().bottomRight()
+        self.behavior.drag_move(self.clock(), pos.x(), pos.y())
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        self._drag_from = None
+        if self._moved:
+            self.behavior.drag_end(self.clock(), moved=True)
+            self.tick_behavior()
+        self._drag_from = self._press_at = None
+        self._moved = False

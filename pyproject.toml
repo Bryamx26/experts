@@ -24,7 +24,7 @@ build-backend = "setuptools.build_meta"
 include = ["experts*"]
 
 [tool.setuptools.package-data]
-experts = ["assets/**/*.svg", "companions/*"]
+experts = ["assets/**/*.svg", "assets/**/*.png", "assets/sprites.json", "companions/*"]
 
 [tool.ruff]
 line-length = 110

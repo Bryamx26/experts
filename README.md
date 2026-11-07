@@ -4,7 +4,7 @@ Compagnon de bureau local qui aide à coder et configurer, avec un spécialiste 
 technologie : Python (le chat), Docker (la boîte), Kubernetes (la pieuvre).
 Tout tourne en local avec Ollama, sans API cloud.
 
-## État : étapes 1 à 7 de la feuille de route
+## État : étapes 1 à 8 de la feuille de route
 
 Un compagnon Python en terminal qui appelle Ollama et utilise des outils :
 
@@ -77,6 +77,32 @@ le code avant et après le curseur part au petit modèle de code via Ollama
 (`suffix`, gabarit FIM appliqué par Ollama). Rien n'est proposé au milieu d'un
 mot, ni si tu tapes encore (150 ms d'attente), ni si Ollama ne répond pas.
 Modèle : `EXPERTS_FIM_MODEL`. Neovim 0.12+ : `vim.lsp.inline_completion.enable()`.
+
+### Animations et humeur des experts (étape 8)
+
+Chaque expert a 8 animations pré-rendues (bandes PNG de 256 px par image dans
+`experts/assets/<expert>/`, décrites par `assets/sprites.json`) : idle, content,
+faim, mange, fâché, surpris, peur, dort. Les mouvements et les onomatopées
+(« Youpi ! », « Grrr ! », « Hein ?! », « Zzz… ») sont dans les images ; la fenêtre
+choisit juste l'image, ce qui coûte très peu de CPU. Pas de bouche : l'émotion
+passe par les yeux, la pose et l'onomatopée.
+
+L'humeur vient d'un petit arbre de comportement (`ui/behavior.py`), évalué
+10 fois par seconde ; la première règle vraie gagne :
+
+| Priorité | Situation | Animation |
+|---|---|---|
+| 1 | tu le déplaces à la souris | surpris, ou peur si tu vas vite (> 1500 px/s) |
+| 2 | déplacé 5 fois en 2 min (ou trop brusquement) | fâché : il boude 30 s et ignore les clics |
+| 3 | clic / nouvelle erreur / tout corrigé | content / surpris / content |
+| 4 | énergie < 30 % (chaque requête au modèle et chaque minute en coûtent 1 %) | faim, puis il mange une barrette de RAM après 10 s sans frappe |
+| 5 | aucune frappe depuis 5 min | dort, jusqu'à la prochaine frappe |
+| 6 | sinon | idle |
+
+Le halo (réfléchit, erreur, suggestion) reste indépendant de l'humeur. Le serveur
+LSP signale les frappes à la fenêtre (évènement `activity`, au plus une fois par
+seconde). Les images sont générées depuis les maquettes (`expr.py`) ; un expert
+sans animations retombe sur son SVG fixe.
 
 ### Fenêtre du compagnon (étape 5)
 
@@ -194,11 +220,11 @@ mypy experts tests
 ```
 experts/
 ├── companions/   # python.yaml, docker.yaml, kubernetes.yaml
-├── assets/       # sprites : python/chat.svg, docker/boite.svg, kubernetes/pieuvre.svg
+├── assets/       # SVG fixes + animations PNG par expert et état, sprites.json
 ├── core/         # config, llm, agent, cloud, rag, companions, router, app
 ├── lsp/          # serveur pygls : diagnostics, code actions
 ├── tools/        # base.py, files.py, web_search.py, shell.py, validators.py
-└── ui/           # fenêtre PySide6, serveur WebSocket local
+└── ui/           # fenêtre PySide6, animations, arbre de comportement, WebSocket local
 ```
 
 ## Feuille de route
@@ -210,3 +236,4 @@ experts/
 5. ✅ Interface PySide6 et liaison WebSocket.
 6. ✅ Autocomplétion FIM.
 7. ✅ Cliquer sur l'expert pour lui poser une question.
+8. ✅ Animations et arbre de comportement (humeur des experts).
