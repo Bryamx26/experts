@@ -4,7 +4,7 @@ Compagnon de bureau local qui aide à coder et configurer, avec un spécialiste 
 technologie : Python (le chat), Docker (la boîte), Kubernetes (la pieuvre).
 Tout tourne en local avec Ollama, sans API cloud.
 
-## État : étapes 1 à 5 de la feuille de route
+## État : étapes 1 à 6 de la feuille de route
 
 Un compagnon Python en terminal qui appelle Ollama et utilise des outils :
 
@@ -49,6 +49,18 @@ seulement si c'est encore ambigu, et enfin Python par défaut.
 python -m experts --file Dockerfile     # démarre avec l'expert Docker
 # dans le terminal : /fichier deploy.yaml, /expert docker
 ```
+
+### Autocomplétion FIM (étape 6)
+
+```bash
+docker exec ollama ollama pull qwen2.5-coder:1.5b   # ou :3b, plus juste mais plus lent
+```
+
+Le serveur LSP répond à `textDocument/inlineCompletion` (texte grisé, LSP 3.18) :
+le code avant et après le curseur part au petit modèle de code via Ollama
+(`suffix`, gabarit FIM appliqué par Ollama). Rien n'est proposé au milieu d'un
+mot, ni si tu tapes encore (150 ms d'attente), ni si Ollama ne répond pas.
+Modèle : `EXPERTS_FIM_MODEL`. Neovim 0.12+ : `vim.lsp.inline_completion.enable()`.
 
 ### Fenêtre du compagnon (étape 5)
 
@@ -150,7 +162,7 @@ fichiers de secrets (`.env`, `*.key`, `*.pem`, clés SSH…) sont refusés par
 `read_file` dans tous les modes. Modèle par défaut : `claude-opus-5-5`
 (`EXPERTS_CLOUD_MODEL` pour changer).
 
-Variables d'environnement : `EXPERTS_EMBED_MODEL`, `EXPERTS_DATA_DIR`, `EXPERTS_BACKEND` (`ollama` ou `anthropic`), `EXPERTS_CLOUD_MODEL`, `EXPERTS_OLLAMA_HOST`, `EXPERTS_CHAT_MODEL`,
+Variables d'environnement : `EXPERTS_FIM_MODEL`, `EXPERTS_EMBED_MODEL`, `EXPERTS_DATA_DIR`, `EXPERTS_BACKEND` (`ollama` ou `anthropic`), `EXPERTS_CLOUD_MODEL`, `EXPERTS_OLLAMA_HOST`, `EXPERTS_CHAT_MODEL`,
 `EXPERTS_SEARXNG_URL`, `EXPERTS_WORKSPACE`, `EXPERTS_TIMEOUT`.
 
 ## Vérifications
@@ -180,4 +192,4 @@ experts/
 3. ✅ YAML de compagnons et routeur.
 4. ✅ Serveur LSP : diagnostics, puis code actions.
 5. ✅ Interface PySide6 et liaison WebSocket.
-6. Autocomplétion FIM.
+6. ✅ Autocomplétion FIM.
