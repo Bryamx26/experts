@@ -1,4 +1,4 @@
-"""Compagnon en terminal (étape 1). Lancement : python -m experts"""
+"""Compagnon en terminal. Lancement : python -m experts [--file Dockerfile]"""
 
 from __future__ import annotations
 
@@ -6,18 +6,16 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 
-from experts.core.agent import Agent, ChatModel
-from experts.core.cloud import AnthropicClient
+from experts.core.agent import Agent
+from experts.core.app import Runtime, build_runtime, make_llm
+from experts.core.companions import CompanionSpec
 from experts.core.config import Settings
-from experts.core.llm import LLMError, OllamaClient, ToolCall
-from experts.core.rag import DocStore, OllamaEmbedder, make_search_docs
-from experts.tools.base import ToolRegistry
-from experts.tools.files import make_list_files, make_read_file
-from experts.tools.shell import make_run_command
-from experts.tools.validators import make_validate_file
-from experts.tools.web_search import make_web_search
+from experts.core.llm import LLMError, ToolCall
 
-HELP = "Commandes : /reset (oublie la conversation), /outils, /quitter"
+HELP = (
+    "Commandes : /fichier <chemin> (choisit l'expert d'après le fichier), /expert <nom>, "
+    "/reset, /outils, /quitter"
+)
 CLOUD_WARNING = """\
   ATTENTION : mode cloud. Tes questions et le contenu des fichiers lus par le
   compagnon partent chez Anthropic (payant, hors de ta machine).
@@ -33,41 +31,17 @@ def show_tool_call(call: ToolCall) -> None:
     print(f"  · {call.name}({call.arguments})")
 
 
-def make_llm(settings: Settings) -> ChatModel:
-    if settings.backend == "anthropic":
-        return AnthropicClient(settings.cloud_model)
-    return OllamaClient(settings.ollama_host, settings.chat_model, timeout=settings.request_timeout)
-
-
-def build_agent(settings: Settings, llm: ChatModel) -> Agent:
-    tools = ToolRegistry(
-        [
-            make_read_file(settings.workspace),
-            make_list_files(settings.workspace),
-            make_validate_file(settings.workspace),
-            make_search_docs(
-                DocStore(
-                    settings.data_dir / "chroma", OllamaEmbedder(settings.ollama_host, settings.embed_model)
-                )
-            ),
-            make_web_search(settings.searxng_url),
-            make_run_command(settings.workspace, confirm_in_terminal),
-        ]
-    )
-    return Agent(llm, tools, max_tool_rounds=settings.max_tool_rounds, on_tool_call=show_tool_call)
-
-
-def main() -> None:
+def parse_settings() -> tuple[Settings, Path | None]:
     parser = argparse.ArgumentParser(description="Compagnon de code en terminal.")
     parser.add_argument("--model", help="Modèle Ollama (défaut : qwen3.5:4b).")
     parser.add_argument("--workspace", type=Path, help="Dossier accessible au compagnon.")
+    parser.add_argument("--file", type=Path, help="Fichier édité : choisit le bon expert.")
     parser.add_argument(
         "--cloud",
         action="store_true",
         help="Utilise un modèle payant (Claude, clé ANTHROPIC_API_KEY) au lieu d'Ollama.",
     )
     args = parser.parse_args()
-
     settings = Settings.from_env()
     if args.model:
         settings = replace(settings, chat_model=args.model)
@@ -75,45 +49,85 @@ def main() -> None:
         settings = replace(settings, workspace=args.workspace.resolve())
     if args.cloud:
         settings = replace(settings, backend="anthropic")
+    return settings, args.file
 
+
+class Session:
+    """Un agent par expert, gardé en mémoire : changer d'expert ne perd pas les conversations."""
+
+    def __init__(self, runtime: Runtime) -> None:
+        self.runtime = runtime
+        self._agents: dict[str, Agent] = {}
+        self.current = runtime.companions[runtime.router.default]
+
+    @property
+    def agent(self) -> Agent:
+        if self.current.name not in self._agents:
+            self._agents[self.current.name] = self.runtime.agent_for(self.current, show_tool_call)
+        return self._agents[self.current.name]
+
+    def switch(self, spec: CompanionSpec, why: str) -> None:
+        self.current = spec
+        print(f"Expert actif : {spec.display_name} ({spec.character}) — {why}")
+
+    def switch_for_file(self, path: Path) -> None:
+        full = path if path.is_absolute() else self.runtime.settings.workspace / path
+        route = self.runtime.route_file(full)
+        self.switch(route.companion, f"choisi par {route.reason} pour {path.name}")
+
+
+def main() -> None:
+    settings, file = parse_settings()
     if settings.backend == "anthropic":
         print(CLOUD_WARNING)
         if input("  Continuer en mode cloud ? [o/N] ").strip().lower() not in {"o", "oui"}:
             return
     try:
-        llm = make_llm(settings)
+        runtime = build_runtime(settings, confirm_in_terminal, llm=make_llm(settings))
     except LLMError as exc:
         print(f"[erreur] {exc}")
         return
-    agent = build_agent(settings, llm)
+    session = Session(runtime)
     model = settings.cloud_model if settings.backend == "anthropic" else settings.chat_model
-    print(f"Compagnon Python ({model}) — espace de travail : {settings.workspace}")
+    print(f"Experts ({model}) — espace de travail : {settings.workspace}")
     print(HELP)
+    if file:
+        session.switch_for_file(file)
+    else:
+        session.switch(session.current, "par défaut")
     try:
         while True:
             try:
-                question = input("\nToi > ").strip()
+                question = input(f"\nToi ({session.current.name}) > ").strip()
             except EOFError:
                 break
+            command, _, arg = question.partition(" ")
             if not question:
                 continue
-            if question in {"/quitter", "/q", "/exit"}:
+            if command in {"/quitter", "/q", "/exit"}:
                 break
-            if question == "/reset":
-                agent.reset()
+            if command == "/reset":
+                session.agent.reset()
                 print("Conversation effacée.")
-                continue
-            if question == "/outils":
-                print(", ".join(agent.tool_names))
-                continue
-            try:
-                print(f"\nChat > {agent.ask(question)}")
-            except LLMError as exc:
-                print(f"\n[erreur] {exc}")
+            elif command == "/outils":
+                print(", ".join(session.agent.tool_names))
+            elif command == "/fichier" and arg:
+                session.switch_for_file(Path(arg.strip()))
+            elif command == "/expert":
+                spec = runtime.companions.get(arg.strip())
+                if spec:
+                    session.switch(spec, "choisi à la main")
+                else:
+                    print(f"Experts disponibles : {', '.join(runtime.companions)}")
+            else:
+                try:
+                    print(f"\n{session.current.display_name} > {session.agent.ask(question)}")
+                except LLMError as exc:
+                    print(f"\n[erreur] {exc}")
     except KeyboardInterrupt:
         print()
     finally:
-        llm.close()
+        runtime.close()
 
 
 if __name__ == "__main__":

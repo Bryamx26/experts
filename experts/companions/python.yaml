@@ -1,0 +1,21 @@
+# Compagnon Python : le chat.
+name: python
+display_name: Python
+character: le chat
+sprites:
+  idle: python/chat.svg
+  think: python/chat.svg
+  alert: python/chat.svg
+  suggest: python/chat.svg
+rag_collection: python
+tools: [read_file, list_files, validate_file, search_docs, web_search, run_command]
+validators:
+  - name: ruff
+    files: ["*.py", "*.pyi"]
+match:
+  - files: ["*.py", "*.pyi"]
+keywords: ["def ", "import ", "class ", "self.", "async def", "__name__", "pip ", "pytest"]
+system_prompt: |
+  Tu es le compagnon Python, un chat qui aide un étudiant DevOps à coder.
+  Réponds en français, brièvement, avec du code Python typé quand c'est utile.
+  Préfère la bibliothèque standard, pathlib, les dataclasses et les annotations de type.
