@@ -4,7 +4,7 @@ Compagnon de bureau local qui aide à coder et configurer, avec un spécialiste 
 technologie : Python (le chat), Docker (la boîte), Kubernetes (la pieuvre).
 Tout tourne en local avec Ollama, sans API cloud.
 
-## État : étapes 1 à 3 de la feuille de route
+## État : étapes 1 à 4 de la feuille de route
 
 Un compagnon Python en terminal qui appelle Ollama et utilise des outils :
 
@@ -49,6 +49,33 @@ seulement si c'est encore ambigu, et enfin Python par défaut.
 python -m experts --file Dockerfile     # démarre avec l'expert Docker
 # dans le terminal : /fichier deploy.yaml, /expert docker
 ```
+
+### Serveur LSP (étape 4)
+
+`experts-lsp` (ou `python -m experts.lsp`) parle LSP sur stdin/stdout :
+
+- **diagnostics** : validateurs lancés à l'ouverture, à la sauvegarde et après
+  500 ms sans frappe ; croix sur la ligne exacte. Si le texte est identique au
+  disque, le vrai fichier est validé (config du projet prise en compte) ;
+  sinon une copie temporaire du texte en cours ;
+- **code actions** : « Docker : corriger « DL3006 » ». La correction n'est
+  demandée au modèle qu'au moment où tu choisis l'action, puis revalidée : elle
+  n'est proposée que si l'erreur disparaît sans en créer d'autre (un second
+  essai avec la sortie des validateurs, sinon abandon et message).
+
+Neovim (0.11+) :
+
+```lua
+vim.lsp.config("experts", {
+  cmd = { "experts-lsp" },
+  filetypes = { "python", "dockerfile", "yaml", "yaml.docker-compose" },
+  root_markers = { ".git" },
+})
+vim.lsp.enable("experts")
+```
+
+VS Code n'accepte un serveur LSP qu'à travers une extension : il faudra une
+petite extension cliente (quelques lignes de TypeScript), à faire séparément.
 
 ### Validateurs (étape 2)
 
@@ -121,7 +148,7 @@ experts/
 ├── companions/   # python.yaml, docker.yaml, kubernetes.yaml
 ├── assets/       # sprites : python/chat.svg, docker/boite.svg, kubernetes/pieuvre.svg
 ├── core/         # config, llm, agent, cloud, rag, companions, router, app
-├── lsp/          # serveur pygls (étape 4)
+├── lsp/          # serveur pygls : diagnostics, code actions
 ├── tools/        # base.py, files.py, web_search.py, shell.py, validators.py
 └── ui/           # fenêtre PySide6 (étape 5)
 ```
@@ -131,6 +158,6 @@ experts/
 1. ✅ Compagnon en terminal qui appelle Ollama avec ses outils.
 2. ✅ RAG et validateurs.
 3. ✅ YAML de compagnons et routeur.
-4. Serveur LSP : diagnostics, puis code actions.
+4. ✅ Serveur LSP : diagnostics, puis code actions.
 5. Interface PySide6 et liaison WebSocket.
 6. Autocomplétion FIM.
