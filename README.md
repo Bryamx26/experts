@@ -4,7 +4,7 @@ Compagnon de bureau local qui aide à coder et configurer, avec un spécialiste 
 technologie : Python (le chat), Docker (la boîte), Kubernetes (la pieuvre).
 Tout tourne en local avec Ollama, sans API cloud.
 
-## État : étapes 1 à 4 de la feuille de route
+## État : étapes 1 à 7 de la feuille de route
 
 Un compagnon Python en terminal qui appelle Ollama et utilise des outils :
 
@@ -49,6 +49,54 @@ seulement si c'est encore ambigu, et enfin Python par défaut.
 python -m experts --file Dockerfile     # démarre avec l'expert Docker
 # dans le terminal : /fichier deploy.yaml, /expert docker
 ```
+
+### Poser une question à l'expert (étape 7)
+
+Clique sur l'expert : un panneau s'ouvre à sa gauche (sans masquer le code).
+
+- le **contexte est joint tout seul** : fichier, fonction englobante (Python) ou
+  lignes autour du curseur. Le curseur est connu par les requêtes de l'éditeur
+  (code actions, complétion) ; sans elles, le début du fichier ;
+- la réponse vient de l'expert du fichier, avec ses outils, et liste ses
+  **sources** (docs RAG, SearXNG, fichiers lus) ;
+- **Insérer (voir le diff)** n'écrit rien : le diff s'affiche, et le code n'est
+  inséré dans l'éditeur (`workspace/applyEdit`) que si tu cliques « Appliquer ».
+  Un aperçu périmé (fichier modifié entre-temps) est refusé ;
+- si le modèle veut lancer une commande, le panneau te la montre avec
+  **Autoriser / Refuser** ; fermer le panneau ou attendre 2 minutes vaut refus ;
+- champ en bas pour enchaîner les questions (une conversation par expert).
+
+### Autocomplétion FIM (étape 6)
+
+```bash
+docker exec ollama ollama pull qwen2.5-coder:1.5b   # ou :3b, plus juste mais plus lent
+```
+
+Le serveur LSP répond à `textDocument/inlineCompletion` (texte grisé, LSP 3.18) :
+le code avant et après le curseur part au petit modèle de code via Ollama
+(`suffix`, gabarit FIM appliqué par Ollama). Rien n'est proposé au milieu d'un
+mot, ni si tu tapes encore (150 ms d'attente), ni si Ollama ne répond pas.
+Modèle : `EXPERTS_FIM_MODEL`. Neovim 0.12+ : `vim.lsp.inline_completion.enable()`.
+
+### Fenêtre du compagnon (étape 5)
+
+```bash
+pip install -e ".[ui]"
+experts-ui        # ou python -m experts.ui
+```
+
+Petite fenêtre sans bordure, translucide, toujours au premier plan, rangée au
+bord droit de l'écran (déplaçable à la souris). L'expert change selon le fichier
+ouvert dans l'éditeur ; son halo montre l'état (bleu pointillé : réfléchit,
+rouge : erreur, jaune : suggestion) et une bulle résume la première erreur.
+Icône dans la zone de notification, raccourci global **Ctrl+Alt+E** pour
+l'afficher ou la masquer (pynput ; indisponible sous Wayland strict).
+
+Liaison : la fenêtre écoute en WebSocket sur `127.0.0.1:8765`, chaque serveur LSP
+s'y connecte (et se reconnecte si tu relances la fenêtre). Un jeton aléatoire,
+stocké en `0600` dans `~/.local/share/experts/ws-token`, est exigé, et les
+connexions venant d'un navigateur sont refusées : une page web ne peut pas
+piloter le compagnon.
 
 ### Serveur LSP (étape 4)
 
@@ -130,7 +178,7 @@ fichiers de secrets (`.env`, `*.key`, `*.pem`, clés SSH…) sont refusés par
 `read_file` dans tous les modes. Modèle par défaut : `claude-opus-5-5`
 (`EXPERTS_CLOUD_MODEL` pour changer).
 
-Variables d'environnement : `EXPERTS_EMBED_MODEL`, `EXPERTS_DATA_DIR`, `EXPERTS_BACKEND` (`ollama` ou `anthropic`), `EXPERTS_CLOUD_MODEL`, `EXPERTS_OLLAMA_HOST`, `EXPERTS_CHAT_MODEL`,
+Variables d'environnement : `EXPERTS_UI_PORT`, `EXPERTS_FIM_MODEL`, `EXPERTS_EMBED_MODEL`, `EXPERTS_DATA_DIR`, `EXPERTS_BACKEND` (`ollama` ou `anthropic`), `EXPERTS_CLOUD_MODEL`, `EXPERTS_OLLAMA_HOST`, `EXPERTS_CHAT_MODEL`,
 `EXPERTS_SEARXNG_URL`, `EXPERTS_WORKSPACE`, `EXPERTS_TIMEOUT`.
 
 ## Vérifications
@@ -150,7 +198,7 @@ experts/
 ├── core/         # config, llm, agent, cloud, rag, companions, router, app
 ├── lsp/          # serveur pygls : diagnostics, code actions
 ├── tools/        # base.py, files.py, web_search.py, shell.py, validators.py
-└── ui/           # fenêtre PySide6 (étape 5)
+└── ui/           # fenêtre PySide6, serveur WebSocket local
 ```
 
 ## Feuille de route
@@ -159,5 +207,6 @@ experts/
 2. ✅ RAG et validateurs.
 3. ✅ YAML de compagnons et routeur.
 4. ✅ Serveur LSP : diagnostics, puis code actions.
-5. Interface PySide6 et liaison WebSocket.
-6. Autocomplétion FIM.
+5. ✅ Interface PySide6 et liaison WebSocket.
+6. ✅ Autocomplétion FIM.
+7. ✅ Cliquer sur l'expert pour lui poser une question.
