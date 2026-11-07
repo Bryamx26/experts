@@ -31,7 +31,24 @@ pip install -e ".[dev]"
 python -m experts --workspace ~/mon-projet
 ```
 
-Variables d'environnement : `EXPERTS_OLLAMA_HOST`, `EXPERTS_CHAT_MODEL`,
+### Option : modèle payant (désactivée par défaut)
+
+Le projet reste local par défaut. Pour une question difficile, tu peux passer
+sur Claude (API Anthropic, payante) :
+
+```bash
+pip install -e ".[cloud]"
+export ANTHROPIC_API_KEY=...   # jamais dans le code ni dans Git
+python -m experts --cloud --workspace ~/mon-projet
+```
+
+Le compagnon affiche un avertissement et demande confirmation : en mode cloud,
+tes questions et le contenu des fichiers lus partent chez Anthropic. Les
+fichiers de secrets (`.env`, `*.key`, `*.pem`, clés SSH…) sont refusés par
+`read_file` dans tous les modes. Modèle par défaut : `claude-opus-5-5`
+(`EXPERTS_CLOUD_MODEL` pour changer).
+
+Variables d'environnement : `EXPERTS_BACKEND` (`ollama` ou `anthropic`), `EXPERTS_CLOUD_MODEL`, `EXPERTS_OLLAMA_HOST`, `EXPERTS_CHAT_MODEL`,
 `EXPERTS_SEARXNG_URL`, `EXPERTS_WORKSPACE`, `EXPERTS_TIMEOUT`.
 
 ## Vérifications

@@ -6,7 +6,8 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 
-from experts.core.agent import Agent
+from experts.core.agent import Agent, ChatModel
+from experts.core.cloud import AnthropicClient
 from experts.core.config import Settings
 from experts.core.llm import LLMError, OllamaClient, ToolCall
 from experts.tools.base import ToolRegistry
@@ -15,6 +16,10 @@ from experts.tools.shell import make_run_command
 from experts.tools.web_search import make_web_search
 
 HELP = "Commandes : /reset (oublie la conversation), /outils, /quitter"
+CLOUD_WARNING = """\
+  ATTENTION : mode cloud. Tes questions et le contenu des fichiers lus par le
+  compagnon partent chez Anthropic (payant, hors de ta machine).
+  Les fichiers de secrets (.env, clés…) restent bloqués."""
 
 
 def confirm_in_terminal(argv: list[str]) -> bool:
@@ -26,8 +31,13 @@ def show_tool_call(call: ToolCall) -> None:
     print(f"  · {call.name}({call.arguments})")
 
 
-def build_agent(settings: Settings) -> tuple[Agent, OllamaClient]:
-    llm = OllamaClient(settings.ollama_host, settings.chat_model, timeout=settings.request_timeout)
+def make_llm(settings: Settings) -> ChatModel:
+    if settings.backend == "anthropic":
+        return AnthropicClient(settings.cloud_model)
+    return OllamaClient(settings.ollama_host, settings.chat_model, timeout=settings.request_timeout)
+
+
+def build_agent(settings: Settings, llm: ChatModel) -> Agent:
     tools = ToolRegistry(
         [
             make_read_file(settings.workspace),
@@ -36,14 +46,18 @@ def build_agent(settings: Settings) -> tuple[Agent, OllamaClient]:
             make_run_command(settings.workspace, confirm_in_terminal),
         ]
     )
-    agent = Agent(llm, tools, max_tool_rounds=settings.max_tool_rounds, on_tool_call=show_tool_call)
-    return agent, llm
+    return Agent(llm, tools, max_tool_rounds=settings.max_tool_rounds, on_tool_call=show_tool_call)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compagnon de code en terminal.")
     parser.add_argument("--model", help="Modèle Ollama (défaut : qwen3.5:4b).")
     parser.add_argument("--workspace", type=Path, help="Dossier accessible au compagnon.")
+    parser.add_argument(
+        "--cloud",
+        action="store_true",
+        help="Utilise un modèle payant (Claude, clé ANTHROPIC_API_KEY) au lieu d'Ollama.",
+    )
     args = parser.parse_args()
 
     settings = Settings.from_env()
@@ -51,9 +65,21 @@ def main() -> None:
         settings = replace(settings, chat_model=args.model)
     if args.workspace:
         settings = replace(settings, workspace=args.workspace.resolve())
+    if args.cloud:
+        settings = replace(settings, backend="anthropic")
 
-    agent, llm = build_agent(settings)
-    print(f"Compagnon Python ({settings.chat_model}) — espace de travail : {settings.workspace}")
+    if settings.backend == "anthropic":
+        print(CLOUD_WARNING)
+        if input("  Continuer en mode cloud ? [o/N] ").strip().lower() not in {"o", "oui"}:
+            return
+    try:
+        llm = make_llm(settings)
+    except LLMError as exc:
+        print(f"[erreur] {exc}")
+        return
+    agent = build_agent(settings, llm)
+    model = settings.cloud_model if settings.backend == "anthropic" else settings.chat_model
+    print(f"Compagnon Python ({model}) — espace de travail : {settings.workspace}")
     print(HELP)
     try:
         while True:
