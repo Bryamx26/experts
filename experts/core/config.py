@@ -28,9 +28,9 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         return cls(
-            ollama_host=os.environ.get("COMPANION_OLLAMA_HOST", cls.ollama_host),
-            chat_model=os.environ.get("COMPANION_CHAT_MODEL", cls.chat_model),
-            searxng_url=os.environ.get("COMPANION_SEARXNG_URL", cls.searxng_url),
-            workspace=Path(os.environ.get("COMPANION_WORKSPACE", Path.cwd())).resolve(),
-            request_timeout=_env_float("COMPANION_TIMEOUT", cls.request_timeout),
+            ollama_host=os.environ.get("EXPERTS_OLLAMA_HOST", cls.ollama_host),
+            chat_model=os.environ.get("EXPERTS_CHAT_MODEL", cls.chat_model),
+            searxng_url=os.environ.get("EXPERTS_SEARXNG_URL", cls.searxng_url),
+            workspace=Path(os.environ.get("EXPERTS_WORKSPACE", Path.cwd())).resolve(),
+            request_timeout=_env_float("EXPERTS_TIMEOUT", cls.request_timeout),
         )
