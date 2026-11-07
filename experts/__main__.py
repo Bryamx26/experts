@@ -10,9 +10,11 @@ from experts.core.agent import Agent, ChatModel
 from experts.core.cloud import AnthropicClient
 from experts.core.config import Settings
 from experts.core.llm import LLMError, OllamaClient, ToolCall
+from experts.core.rag import DocStore, OllamaEmbedder, make_search_docs
 from experts.tools.base import ToolRegistry
 from experts.tools.files import make_list_files, make_read_file
 from experts.tools.shell import make_run_command
+from experts.tools.validators import make_validate_file
 from experts.tools.web_search import make_web_search
 
 HELP = "Commandes : /reset (oublie la conversation), /outils, /quitter"
@@ -42,6 +44,12 @@ def build_agent(settings: Settings, llm: ChatModel) -> Agent:
         [
             make_read_file(settings.workspace),
             make_list_files(settings.workspace),
+            make_validate_file(settings.workspace),
+            make_search_docs(
+                DocStore(
+                    settings.data_dir / "chroma", OllamaEmbedder(settings.ollama_host, settings.embed_model)
+                )
+            ),
             make_web_search(settings.searxng_url),
             make_run_command(settings.workspace, confirm_in_terminal),
         ]

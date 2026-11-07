@@ -30,6 +30,8 @@ class Settings:
     # "anthropic" = modèle payant dans le cloud, à activer explicitement.
     backend: Backend = "ollama"
     cloud_model: str = "claude-opus-5-5"
+    embed_model: str = "nomic-embed-text"
+    data_dir: Path = field(default_factory=lambda: Path.home() / ".local" / "share" / "experts")
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -41,4 +43,8 @@ class Settings:
             request_timeout=_env_float("EXPERTS_TIMEOUT", cls.request_timeout),
             backend="anthropic" if os.environ.get("EXPERTS_BACKEND") == "anthropic" else "ollama",
             cloud_model=os.environ.get("EXPERTS_CLOUD_MODEL", cls.cloud_model),
+            embed_model=os.environ.get("EXPERTS_EMBED_MODEL", cls.embed_model),
+            data_dir=Path(
+                os.environ.get("EXPERTS_DATA_DIR", Path.home() / ".local" / "share" / "experts")
+            ).expanduser(),
         )
