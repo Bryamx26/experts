@@ -7,7 +7,7 @@ rond ne bloque pas le terminal.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Protocol
+from typing import Any, Protocol
 
 from experts.core.llm import Message, ToolCall
 from experts.tools.base import ToolRegistry
@@ -24,7 +24,9 @@ N'appelle run_command que si c'est nécessaire ; l'utilisateur doit confirmer.
 
 
 class ChatModel(Protocol):
-    def chat(self, messages: list[Message], tools: list[dict[str, object]] | None = None) -> Message: ...
+    def chat(self, messages: list[Message], tools: list[dict[str, Any]] | None = None) -> Message: ...
+
+    def close(self) -> None: ...
 
 
 class Agent:
@@ -63,7 +65,9 @@ class Agent:
                 if self._on_tool_call:
                     self._on_tool_call(call)
                 result = self._tools.call(call.name, call.arguments)
-                self.history.append(Message(role="tool", content=result, tool_name=call.name))
+                self.history.append(
+                    Message(role="tool", content=result, tool_name=call.name, tool_call_id=call.id)
+                )
         # Dernier tour sans outils : on force une réponse texte.
         reply = self._llm.chat([self._system, *self.history], tools=None)
         self.history.append(reply)

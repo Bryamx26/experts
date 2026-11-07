@@ -9,6 +9,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
+
+Backend = Literal["ollama", "anthropic"]
 
 
 def _env_float(name: str, default: float) -> float:
@@ -24,6 +27,9 @@ class Settings:
     workspace: Path = field(default_factory=Path.cwd)
     request_timeout: float = 120.0
     max_tool_rounds: int = 6
+    # "anthropic" = modèle payant dans le cloud, à activer explicitement.
+    backend: Backend = "ollama"
+    cloud_model: str = "claude-opus-5-5"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -33,4 +39,6 @@ class Settings:
             searxng_url=os.environ.get("EXPERTS_SEARXNG_URL", cls.searxng_url),
             workspace=Path(os.environ.get("EXPERTS_WORKSPACE", Path.cwd())).resolve(),
             request_timeout=_env_float("EXPERTS_TIMEOUT", cls.request_timeout),
+            backend="anthropic" if os.environ.get("EXPERTS_BACKEND") == "anthropic" else "ollama",
+            cloud_model=os.environ.get("EXPERTS_CLOUD_MODEL", cls.cloud_model),
         )

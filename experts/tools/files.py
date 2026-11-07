@@ -11,6 +11,14 @@ from pathlib import Path
 from experts.tools.base import Tool, ToolError
 
 MAX_FILE_BYTES = 200_000
+# Jamais envoyés au modèle, qu'il soit local ou dans le cloud.
+SECRET_NAMES = {".env", ".netrc", ".pgpass", "id_rsa", "id_ed25519", "id_ecdsa", "credentials"}
+SECRET_SUFFIXES = (".pem", ".key", ".p12", ".pfx", ".kdbx")
+
+
+def is_secret(path: Path) -> bool:
+    name = path.name.lower()
+    return name in SECRET_NAMES or name.startswith(".env.") or name.endswith(SECRET_SUFFIXES)
 
 
 def resolve_inside(workspace: Path, relative: str) -> Path:
@@ -26,6 +34,8 @@ def make_read_file(workspace: Path) -> Tool:
         target = resolve_inside(workspace, path)
         if not target.is_file():
             raise ToolError(f"'{path}' n'existe pas ou n'est pas un fichier.")
+        if is_secret(target):
+            raise ToolError(f"'{path}' ressemble à un fichier de secrets ; lecture refusée.")
         if target.stat().st_size > MAX_FILE_BYTES:
             raise ToolError(f"'{path}' dépasse {MAX_FILE_BYTES} octets ; précise une plage de lignes.")
         lines = target.read_text(encoding="utf-8", errors="replace").splitlines()

@@ -22,6 +22,7 @@ class LLMError(RuntimeError):
 class ToolCall:
     name: str
     arguments: dict[str, Any]
+    id: str | None = None  # requis par l'API Anthropic, absent chez Ollama
 
 
 @dataclass(slots=True)
@@ -30,6 +31,9 @@ class Message:
     content: str = ""
     tool_calls: list[ToolCall] = field(default_factory=list)
     tool_name: str | None = None
+    tool_call_id: str | None = None
+    # Contenu brut du fournisseur, renvoyé tel quel au tour suivant (ex. blocs de réflexion Claude).
+    raw: Any = None
 
     def to_api(self) -> dict[str, Any]:
         data: dict[str, Any] = {"role": self.role, "content": self.content}
