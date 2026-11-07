@@ -4,7 +4,7 @@ Compagnon de bureau local qui aide à coder et configurer, avec un spécialiste 
 technologie : Python (le chat), Docker (la boîte), Kubernetes (la pieuvre).
 Tout tourne en local avec Ollama, sans API cloud.
 
-## État : étapes 1 à 4 de la feuille de route
+## État : étapes 1 à 5 de la feuille de route
 
 Un compagnon Python en terminal qui appelle Ollama et utilise des outils :
 
@@ -49,6 +49,26 @@ seulement si c'est encore ambigu, et enfin Python par défaut.
 python -m experts --file Dockerfile     # démarre avec l'expert Docker
 # dans le terminal : /fichier deploy.yaml, /expert docker
 ```
+
+### Fenêtre du compagnon (étape 5)
+
+```bash
+pip install -e ".[ui]"
+experts-ui        # ou python -m experts.ui
+```
+
+Petite fenêtre sans bordure, translucide, toujours au premier plan, rangée au
+bord droit de l'écran (déplaçable à la souris). L'expert change selon le fichier
+ouvert dans l'éditeur ; son halo montre l'état (bleu pointillé : réfléchit,
+rouge : erreur, jaune : suggestion) et une bulle résume la première erreur.
+Icône dans la zone de notification, raccourci global **Ctrl+Alt+E** pour
+l'afficher ou la masquer (pynput ; indisponible sous Wayland strict).
+
+Liaison : la fenêtre écoute en WebSocket sur `127.0.0.1:8765`, chaque serveur LSP
+s'y connecte (et se reconnecte si tu relances la fenêtre). Un jeton aléatoire,
+stocké en `0600` dans `~/.local/share/experts/ws-token`, est exigé, et les
+connexions venant d'un navigateur sont refusées : une page web ne peut pas
+piloter le compagnon.
 
 ### Serveur LSP (étape 4)
 
@@ -150,7 +170,7 @@ experts/
 ├── core/         # config, llm, agent, cloud, rag, companions, router, app
 ├── lsp/          # serveur pygls : diagnostics, code actions
 ├── tools/        # base.py, files.py, web_search.py, shell.py, validators.py
-└── ui/           # fenêtre PySide6 (étape 5)
+└── ui/           # fenêtre PySide6, serveur WebSocket local
 ```
 
 ## Feuille de route
@@ -159,5 +179,5 @@ experts/
 2. ✅ RAG et validateurs.
 3. ✅ YAML de compagnons et routeur.
 4. ✅ Serveur LSP : diagnostics, puis code actions.
-5. Interface PySide6 et liaison WebSocket.
+5. ✅ Interface PySide6 et liaison WebSocket.
 6. Autocomplétion FIM.
