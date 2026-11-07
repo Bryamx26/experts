@@ -4,7 +4,7 @@ Compagnon de bureau local qui aide à coder et configurer, avec un spécialiste 
 technologie : Python (le chat), Docker (la boîte), Kubernetes (la pieuvre).
 Tout tourne en local avec Ollama, sans API cloud.
 
-## État : étapes 1 à 6 de la feuille de route
+## État : étapes 1 à 7 de la feuille de route
 
 Un compagnon Python en terminal qui appelle Ollama et utilise des outils :
 
@@ -49,6 +49,22 @@ seulement si c'est encore ambigu, et enfin Python par défaut.
 python -m experts --file Dockerfile     # démarre avec l'expert Docker
 # dans le terminal : /fichier deploy.yaml, /expert docker
 ```
+
+### Poser une question à l'expert (étape 7)
+
+Clique sur l'expert : un panneau s'ouvre à sa gauche (sans masquer le code).
+
+- le **contexte est joint tout seul** : fichier, fonction englobante (Python) ou
+  lignes autour du curseur. Le curseur est connu par les requêtes de l'éditeur
+  (code actions, complétion) ; sans elles, le début du fichier ;
+- la réponse vient de l'expert du fichier, avec ses outils, et liste ses
+  **sources** (docs RAG, SearXNG, fichiers lus) ;
+- **Insérer (voir le diff)** n'écrit rien : le diff s'affiche, et le code n'est
+  inséré dans l'éditeur (`workspace/applyEdit`) que si tu cliques « Appliquer ».
+  Un aperçu périmé (fichier modifié entre-temps) est refusé ;
+- si le modèle veut lancer une commande, le panneau te la montre avec
+  **Autoriser / Refuser** ; fermer le panneau ou attendre 2 minutes vaut refus ;
+- champ en bas pour enchaîner les questions (une conversation par expert).
 
 ### Autocomplétion FIM (étape 6)
 
@@ -162,7 +178,7 @@ fichiers de secrets (`.env`, `*.key`, `*.pem`, clés SSH…) sont refusés par
 `read_file` dans tous les modes. Modèle par défaut : `claude-opus-5-5`
 (`EXPERTS_CLOUD_MODEL` pour changer).
 
-Variables d'environnement : `EXPERTS_FIM_MODEL`, `EXPERTS_EMBED_MODEL`, `EXPERTS_DATA_DIR`, `EXPERTS_BACKEND` (`ollama` ou `anthropic`), `EXPERTS_CLOUD_MODEL`, `EXPERTS_OLLAMA_HOST`, `EXPERTS_CHAT_MODEL`,
+Variables d'environnement : `EXPERTS_UI_PORT`, `EXPERTS_FIM_MODEL`, `EXPERTS_EMBED_MODEL`, `EXPERTS_DATA_DIR`, `EXPERTS_BACKEND` (`ollama` ou `anthropic`), `EXPERTS_CLOUD_MODEL`, `EXPERTS_OLLAMA_HOST`, `EXPERTS_CHAT_MODEL`,
 `EXPERTS_SEARXNG_URL`, `EXPERTS_WORKSPACE`, `EXPERTS_TIMEOUT`.
 
 ## Vérifications
@@ -193,3 +209,4 @@ experts/
 4. ✅ Serveur LSP : diagnostics, puis code actions.
 5. ✅ Interface PySide6 et liaison WebSocket.
 6. ✅ Autocomplétion FIM.
+7. ✅ Cliquer sur l'expert pour lui poser une question.

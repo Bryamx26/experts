@@ -39,8 +39,11 @@ class SpriteWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setFixedSize(QSize(SPRITE_SIZE + 16, SPRITE_SIZE + 16))
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Clique pour poser une question")
         self._renderers: dict[str, QSvgRenderer] = {}
         self.state = "idle"
+        self.selected = False  # panneau de question ouvert
         self._phase = 0.0
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -55,6 +58,10 @@ class SpriteWidget(QWidget):
         if state in HALO:
             self.state = state
             self.update()
+
+    def set_selected(self, selected: bool) -> None:
+        self.selected = selected
+        self.update()
 
     def _tick(self) -> None:
         self._phase = (self._phase + 0.033) % 1000
@@ -78,6 +85,9 @@ class SpriteWidget(QWidget):
             pen = QPen(color, 3, Qt.PenStyle.DashLine if self.state == "think" else Qt.PenStyle.SolidLine)
             p.setPen(pen)
             p.drawEllipse(QRectF(3, 3, self.width() - 6, self.height() - 6))
+        if self.selected:
+            p.setPen(QPen(QColor(150, 190, 255), 2, Qt.PenStyle.DotLine))
+            p.drawEllipse(QRectF(1, 1, self.width() - 2, self.height() - 2))
         renderer = self._renderers.get(self.state)
         if renderer is not None and renderer.isValid():
             box = renderer.defaultSize().scaled(SPRITE_SIZE, SPRITE_SIZE, Qt.AspectRatioMode.KeepAspectRatio)

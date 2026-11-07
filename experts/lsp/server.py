@@ -29,7 +29,8 @@ from experts.core.bridge import BridgeClient
 from experts.core.companions import CompanionSpec
 from experts.core.config import Settings
 from experts.core.fim import FimClient
-from experts.core.fixer import minimal_edit, propose_fix
+from experts.core.fixer import TextEdit, minimal_edit, propose_fix
+from experts.lsp.ask import AskService, EditorContext, build_context
 from experts.tools.validators import Diagnostic, Validator, from_names, validate_content, validate_path
 
 DEBOUNCE_S = 0.5
@@ -74,6 +75,12 @@ class ExpertsServer(LanguageServer):
         self.runtime: Runtime | None = None
         self.bridge: BridgeClient | None = None
         self.fim: FimClient | None = None
+        self.ask: AskService | None = None
+        self.active_uri: str | None = None
+        # Dernière position connue du curseur/sélection (lignes 0-based), vue via codeAction et
+        # inlineCompletion : LSP n'envoie pas le curseur en continu.
+        self.cursors: dict[str, tuple[int, int]] = {}
+        self.confirm: Callable[[list[str]], bool] = lambda argv: False
         self._pending: dict[str, asyncio.Task[None]] = {}
         # Branché sur la fenêtre du compagnon à l'étape 5 (WebSocket).
         self.emit: Callable[[Event], None] = lambda event: None
@@ -82,8 +89,8 @@ class ExpertsServer(LanguageServer):
         settings = Settings.from_env()
         if root is not None:
             settings = replace(settings, workspace=root.resolve())
-        # Pas de terminal ici : toute commande est refusée tant que la fenêtre (étape 5) ne confirme pas.
-        self.runtime = build_runtime(settings, confirm=lambda argv: False)
+        # Pas de terminal ici : une commande n'est lancée que si la fenêtre (étape 7) la confirme.
+        self.runtime = build_runtime(settings, confirm=lambda argv: self.confirm(argv))
         self.fim = FimClient(settings.ollama_host, settings.fim_model)
 
     def context(self, uri: str) -> tuple[Path, str, CompanionSpec, list[Validator]]:
@@ -95,6 +102,7 @@ class ExpertsServer(LanguageServer):
 
     async def validate(self, uri: str) -> None:
         path, source, spec, validators = self.context(uri)
+        self.active_uri = uri
         self.emit({"type": "focus", "companion": spec.name, "file": str(path)})
         if not validators:
             self.text_document_publish_diagnostics(lsp.PublishDiagnosticsParams(uri=uri, diagnostics=[]))
@@ -125,6 +133,23 @@ class ExpertsServer(LanguageServer):
             }
         )
         self.emit({"type": "state", "state": "alert" if errors else "idle"})
+
+    def editor_context(self) -> EditorContext | None:
+        uri = self.active_uri
+        if uri is None or uri not in self.workspace.text_documents:
+            return None
+        doc = self.workspace.get_text_document(uri)
+        return build_context(uri, Path(to_fs_path(uri) or uri), doc.source, self.cursors.get(uri))
+
+    async def apply_text_edit(self, uri: str, edit: TextEdit) -> bool:
+        rng = lsp.Range(lsp.Position(edit.start_line, 0), lsp.Position(edit.end_line, 0))
+        result = await self.workspace_apply_edit_async(
+            lsp.ApplyWorkspaceEditParams(
+                edit=lsp.WorkspaceEdit(changes={uri: [lsp.TextEdit(range=rng, new_text=edit.text)]}),
+                label="Experts : insertion confirmée",
+            )
+        )
+        return bool(result.applied)
 
     def schedule(self, uri: str, delay: float) -> None:
         if task := self._pending.pop(uri, None):
@@ -157,7 +182,17 @@ def initialize(ls: ExpertsServer, params: lsp.InitializeParams) -> None:
 async def initialized(ls: ExpertsServer, params: lsp.InitializedParams) -> None:
     # Liaison avec la fenêtre du compagnon (étape 5) ; sans fenêtre, l'éditeur fonctionne pareil.
     assert ls.runtime is not None
-    ls.bridge = BridgeClient(ls.runtime.settings.data_dir)
+    ls.ask = AskService(
+        runtime=ls.runtime,
+        send=lambda event: ls.emit(event),
+        get_context=ls.editor_context,
+        get_selection=lambda uri: ls.cursors.get(uri),
+        apply_edit=ls.apply_text_edit,
+    )
+    ls.confirm = ls.ask.confirm
+    ls.bridge = BridgeClient(
+        ls.runtime.settings.data_dir, port=ls.runtime.settings.ui_port, on_message=ls.ask.handle
+    )
     ls.bridge.start()
     ls.emit = ls.bridge.emit
 
@@ -192,6 +227,7 @@ def did_close(ls: ExpertsServer, params: lsp.DidCloseTextDocumentParams) -> None
 )
 def code_action(ls: ExpertsServer, params: lsp.CodeActionParams) -> list[lsp.CodeAction]:
     assert ls.runtime is not None
+    ls.cursors[params.text_document.uri] = (params.range.start.line, params.range.end.line)
     actions: list[lsp.CodeAction] = []
     for diag in params.context.diagnostics:
         if (
@@ -250,6 +286,7 @@ async def inline_completion(
 ) -> lsp.InlineCompletionList | None:
     """Texte grisé à la position du curseur (LSP 3.18 : VS Code, Neovim 0.12+)."""
     assert ls.fim is not None
+    ls.cursors[params.text_document.uri] = (params.position.line, params.position.line)
     doc = ls.workspace.get_text_document(params.text_document.uri)
     version = doc.version
     # Petite pause : si tu tapes encore, la requête est abandonnée avant d'appeler le modèle.

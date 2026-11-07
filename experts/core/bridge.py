@@ -30,8 +30,9 @@ TOKEN_FILE = "ws-token"
 PROTOCOL_VERSION = 1
 log = logging.getLogger("experts.bridge")
 
-# Évènements LSP → fenêtre : focus, state, diagnostics, suggestion (+ answer, confirm à l'étape 7).
-EVENT_TYPES = frozenset({"focus", "state", "diagnostics", "suggestion", "answer", "confirm"})
+# Évènements LSP → fenêtre : focus, state, diagnostics, suggestion ; answer, confirm, diff (étape 7).
+# Fenêtre → LSP (étape 7) : ask, confirm_reply, insert_preview, insert_apply.
+EVENT_TYPES = frozenset({"focus", "state", "diagnostics", "suggestion", "answer", "confirm", "diff"})
 STATES = frozenset({"idle", "think", "alert", "suggest"})
 
 Event = dict[str, Any]

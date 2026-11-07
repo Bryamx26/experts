@@ -14,6 +14,7 @@ from experts.core.bridge import create_token
 from experts.core.companions import load_companions
 from experts.core.config import Settings
 from experts.ui.bridge_server import BridgeServer
+from experts.ui.controller import Controller
 from experts.ui.window import CompanionWindow
 
 HOTKEY = "<ctrl>+<alt>+e"
@@ -65,11 +66,12 @@ def main() -> None:
     settings = Settings.from_env()
     window = CompanionWindow(load_companions())
     try:
-        bridge = BridgeServer(create_token(settings.data_dir))
+        bridge = BridgeServer(create_token(settings.data_dir), port=settings.ui_port)
     except OSError as exc:
         log.error("%s", exc)
         sys.exit(1)
-    bridge.event_received.connect(window.handle_event)
+    controller = Controller(window, bridge)
+    bridge.event_received.connect(controller.handle_event)
     window.place_default()
     window.show()
     tray = build_tray(app, window)
