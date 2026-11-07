@@ -1,0 +1,168 @@
+{
+  "frame_size": [
+    256,
+    256
+  ],
+  "layout": "bande horizontale : l'image i est à x = i * 256",
+  "experts": {
+    "python": {
+      "personnage": "chat",
+      "etats": {
+        "idle": {
+          "fichier": "python/idle.png",
+          "images": 8,
+          "fps": 8,
+          "boucle": true
+        },
+        "content": {
+          "fichier": "python/content.png",
+          "images": 8,
+          "fps": 12,
+          "boucle": false
+        },
+        "faim": {
+          "fichier": "python/faim.png",
+          "images": 8,
+          "fps": 8,
+          "boucle": true
+        },
+        "mange": {
+          "fichier": "python/mange.png",
+          "images": 16,
+          "fps": 8,
+          "boucle": false
+        },
+        "fache": {
+          "fichier": "python/fache.png",
+          "images": 8,
+          "fps": 12,
+          "boucle": true
+        },
+        "surpris": {
+          "fichier": "python/surpris.png",
+          "images": 6,
+          "fps": 12,
+          "boucle": false
+        },
+        "peur": {
+          "fichier": "python/peur.png",
+          "images": 8,
+          "fps": 12,
+          "boucle": true
+        },
+        "dort": {
+          "fichier": "python/dort.png",
+          "images": 8,
+          "fps": 4,
+          "boucle": true
+        }
+      }
+    },
+    "docker": {
+      "personnage": "boite",
+      "etats": {
+        "idle": {
+          "fichier": "docker/idle.png",
+          "images": 8,
+          "fps": 8,
+          "boucle": true
+        },
+        "content": {
+          "fichier": "docker/content.png",
+          "images": 8,
+          "fps": 12,
+          "boucle": false
+        },
+        "faim": {
+          "fichier": "docker/faim.png",
+          "images": 8,
+          "fps": 8,
+          "boucle": true
+        },
+        "mange": {
+          "fichier": "docker/mange.png",
+          "images": 16,
+          "fps": 8,
+          "boucle": false
+        },
+        "fache": {
+          "fichier": "docker/fache.png",
+          "images": 8,
+          "fps": 12,
+          "boucle": true
+        },
+        "surpris": {
+          "fichier": "docker/surpris.png",
+          "images": 6,
+          "fps": 12,
+          "boucle": false
+        },
+        "peur": {
+          "fichier": "docker/peur.png",
+          "images": 8,
+          "fps": 12,
+          "boucle": true
+        },
+        "dort": {
+          "fichier": "docker/dort.png",
+          "images": 8,
+          "fps": 4,
+          "boucle": true
+        }
+      }
+    },
+    "kubernetes": {
+      "personnage": "pieuvre",
+      "etats": {
+        "idle": {
+          "fichier": "kubernetes/idle.png",
+          "images": 8,
+          "fps": 8,
+          "boucle": true
+        },
+        "content": {
+          "fichier": "kubernetes/content.png",
+          "images": 8,
+          "fps": 12,
+          "boucle": false
+        },
+        "faim": {
+          "fichier": "kubernetes/faim.png",
+          "images": 8,
+          "fps": 8,
+          "boucle": true
+        },
+        "mange": {
+          "fichier": "kubernetes/mange.png",
+          "images": 16,
+          "fps": 8,
+          "boucle": false
+        },
+        "fache": {
+          "fichier": "kubernetes/fache.png",
+          "images": 8,
+          "fps": 12,
+          "boucle": true
+        },
+        "surpris": {
+          "fichier": "kubernetes/surpris.png",
+          "images": 6,
+          "fps": 12,
+          "boucle": false
+        },
+        "peur": {
+          "fichier": "kubernetes/peur.png",
+          "images": 8,
+          "fps": 12,
+          "boucle": true
+        },
+        "dort": {
+          "fichier": "kubernetes/dort.png",
+          "images": 8,
+          "fps": 4,
+          "boucle": true
+        }
+      }
+    }
+  }
+}

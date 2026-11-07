@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -69,6 +70,9 @@ def from_lsp(d: lsp.Diagnostic, filename: str) -> Diagnostic:
     )
 
 
+ACTIVITY_EVERY_S = 1.0
+
+
 class ExpertsServer(LanguageServer):
     def __init__(self) -> None:
         super().__init__("experts", "0.4.0")
@@ -84,6 +88,14 @@ class ExpertsServer(LanguageServer):
         self._pending: dict[str, asyncio.Task[None]] = {}
         # Branché sur la fenêtre du compagnon à l'étape 5 (WebSocket).
         self.emit: Callable[[Event], None] = lambda event: None
+        self._last_activity = float("-inf")
+
+    def notify_activity(self) -> None:
+        """Signale une frappe à la fenêtre (au plus une fois par seconde) : réveil, faim."""
+        now = time.monotonic()
+        if now - self._last_activity >= ACTIVITY_EVERY_S:
+            self._last_activity = now
+            self.emit({"type": "activity"})
 
     def setup(self, root: Path | None) -> None:
         settings = Settings.from_env()
@@ -204,6 +216,7 @@ def did_open(ls: ExpertsServer, params: lsp.DidOpenTextDocumentParams) -> None:
 
 @server.feature(lsp.TEXT_DOCUMENT_DID_CHANGE)
 def did_change(ls: ExpertsServer, params: lsp.DidChangeTextDocumentParams) -> None:
+    ls.notify_activity()
     ls.schedule(params.text_document.uri, DEBOUNCE_S)
 
 
