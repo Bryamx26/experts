@@ -25,6 +25,7 @@ from pygls.lsp.server import LanguageServer
 from pygls.uris import to_fs_path
 
 from experts.core.app import Runtime, build_runtime
+from experts.core.bridge import BridgeClient
 from experts.core.companions import CompanionSpec
 from experts.core.config import Settings
 from experts.core.fixer import minimal_edit, propose_fix
@@ -70,6 +71,7 @@ class ExpertsServer(LanguageServer):
     def __init__(self) -> None:
         super().__init__("experts", "0.4.0")
         self.runtime: Runtime | None = None
+        self.bridge: BridgeClient | None = None
         self._pending: dict[str, asyncio.Task[None]] = {}
         # Branché sur la fenêtre du compagnon à l'étape 5 (WebSocket).
         self.emit: Callable[[Event], None] = lambda event: None
@@ -146,6 +148,15 @@ def initialize(ls: ExpertsServer, params: lsp.InitializeParams) -> None:
     elif params.root_uri:
         root = Path(to_fs_path(params.root_uri) or ".")
     ls.setup(root)
+
+
+@server.feature(lsp.INITIALIZED)
+async def initialized(ls: ExpertsServer, params: lsp.InitializedParams) -> None:
+    # Liaison avec la fenêtre du compagnon (étape 5) ; sans fenêtre, l'éditeur fonctionne pareil.
+    assert ls.runtime is not None
+    ls.bridge = BridgeClient(ls.runtime.settings.data_dir)
+    ls.bridge.start()
+    ls.emit = ls.bridge.emit
 
 
 @server.feature(lsp.TEXT_DOCUMENT_DID_OPEN)

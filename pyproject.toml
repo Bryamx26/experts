@@ -4,15 +4,17 @@ version = "0.1.0"
 description = "Compagnon de code local : spécialistes Python, Docker, Kubernetes."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["httpx>=0.27", "pyyaml>=6", "chromadb>=1.5", "pygls>=2.0"]
+dependencies = ["httpx>=0.27", "pyyaml>=6", "chromadb>=1.5", "pygls>=2.0", "websockets>=13"]
 
 [project.optional-dependencies]
+ui = ["PySide6>=6.7", "pynput>=1.7"]
 cloud = ["anthropic>=2.6"]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "anthropic>=2.6", "types-PyYAML", "yamllint>=1.35"]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "anthropic>=2.6", "types-PyYAML", "yamllint>=1.35", "PySide6>=6.7"]
 
 [project.scripts]
 experts = "experts.__main__:main"
 experts-lsp = "experts.lsp.__main__:main"
+experts-ui = "experts.ui.__main__:main"
 
 [build-system]
 requires = ["setuptools>=69"]
@@ -37,3 +39,7 @@ python_version = "3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[[tool.mypy.overrides]]
+module = ["pynput", "pynput.*"]
+ignore_missing_imports = true
